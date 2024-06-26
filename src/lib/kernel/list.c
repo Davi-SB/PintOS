@@ -154,6 +154,8 @@ list_head (struct list *list)
   return &list->head;
 }
 
+
+
 /* Return's LIST's tail. */
 struct list_elem *
 list_tail (struct list *list) 
@@ -515,6 +517,7 @@ list_min (struct list *list, list_less_func *less, void *aux)
   if (min != list_end (list)) 
     {
       struct list_elem *e;
+      
       
       for (e = list_next (min); e != list_end (list); e = list_next (e))
         if (less (e, min, aux))

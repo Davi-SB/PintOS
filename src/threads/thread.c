@@ -29,6 +29,8 @@ static struct list ready_list;
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
 
+static struct list custom_sleep_list;
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -93,6 +95,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  list_init (&custom_sleep_list);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -267,6 +270,11 @@ thread_current (void)
   ASSERT (t->status == THREAD_RUNNING);
 
   return t;
+}
+
+// returns idle_thread
+struct thread* thread_idle(void) {
+    return idle_thread;
 }
 
 /* Returns the running thread's tid. */
@@ -558,11 +566,6 @@ schedule (void)
   struct thread *prev = NULL;
 
   ASSERT (intr_get_level () == INTR_OFF);
-  /* TODO:
-   * Ver de usar o thread_block, mas para o schedule 
-   * tem de verificar se uma thread esta bloqueada, alem de implementar 
-   * o unblock com o tempo
-   * */
   ASSERT (cur->status != THREAD_RUNNING);
   ASSERT (is_thread (next));
 
@@ -588,3 +591,62 @@ allocate_tid (void)
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+void soWakeMeUpWhenItsAllOver(void) {
+/*
+    if(list_empty(&custom_sleep_list)) return;
+
+    struct list_elem *it  = list_begin(&custom_sleep_list);
+    struct list_elem *end = list_end(&custom_sleep_list);
+    struct thread *front;
+
+    while(it != end) { // retira as threads que devem acordar da fila de sleep e manda para a ready
+        struct thread *t = list_entry(it, struct thread, elem);
+        if(t->wake_up > (*nextTimeWakeUp)) break; // checa se precisa remover
+        
+        front = list_entry(list_pop_front(&custom_sleep_list), struct thread, elem);
+        front->status = THREAD_READY;
+        list_push_back(&ready_list, front); // adiciona na lista pronto
+
+        it = list_next(it);
+    }
+
+    front = list_entry(list_begin(&custom_sleep_list), struct thread, elem);
+    (*nextTimeWakeUp) = front->wake_up; // atualiza nextTimeWakeUp
+*/
+    while (!list_empty(&custom_sleep_list)) {
+        struct list_elem *e = list_front(&custom_sleep_list);
+        struct thread *t = list_entry(e, struct thread, elem);
+
+        if (t->wake_up > timer_ticks()) break; // sem threads para remover
+
+        list_pop_front(&custom_sleep_list);
+        thread_unblock(t);
+    }
+}
+
+bool customListLessThan(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
+    struct thread *t1 = list_entry(a, struct thread, elem);
+    struct thread *t2 = list_entry(b, struct thread, elem);
+
+    return (t1->wake_up < t2->wake_up);
+}
+
+
+void custom_insert(struct thread *new_thread) {
+    /*
+    struct list_elem *it  = list_begin(&custom_sleep_list);
+    struct list_elem *end = list_end(&custom_sleep_list);
+
+    while (it != end) {
+    struct thread *t = list_entry(it, struct thread, elem);
+    if (new_thread->wake_up < t->wake_up) break; // encontrou posicao de inserir (before)
+
+    it = list_next(it);
+    }
+
+    list_insert(it, &new_thread->elem);
+    */
+
+    list_insert_ordered(&custom_sleep_list, &new_thread->elem, (list_less_func *)&customListLessThan, NULL);
+}

@@ -7,6 +7,8 @@
 #include "threads/interrupt.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
+
+#include <list.h>
   
 /* See [8254] for hardware details of the 8254 timer chip. */
 
@@ -84,16 +86,28 @@ timer_elapsed (int64_t then)
   return timer_ticks () - then;
 }
 
+void custom_thread_wait(int64_t wake_time) {
+	ASSERT (!intr_context ());
+	enum intr_level old_level = intr_disable(); 
+	struct thread *curr = thread_current(); // desabilita interrupcoes
+	
+	if(curr != thread_idle()) {
+		curr->wake_up = wake_time;
+		custom_insert(curr);
+		thread_block(); // schedule dentro de thread_block
+	}
+	intr_set_level(old_level);
+}
+
 /* Sleeps for approximately TICKS timer ticks.  Interrupts must
    be turned on. */
-void
-timer_sleep (int64_t ticks) 
-{
+void timer_sleep (int64_t ticks) {
+  if(ticks <= 0) return;
   int64_t start = timer_ticks ();
 
   ASSERT (intr_get_level () == INTR_ON);
-  while (timer_elapsed (start) < ticks) 
-    thread_yield ();
+
+  if(timer_elapsed(start) < ticks) custom_thread_wait(ticks + start);
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -167,11 +181,10 @@ timer_print_stats (void)
 }
 
 /* Timer interrupt handler. */
-static void
-timer_interrupt (struct intr_frame *args UNUSED)
-{
-  ticks++;
-  thread_tick ();
+static void timer_interrupt (struct intr_frame *args UNUSED) {
+	ticks++;
+	thread_tick();
+	soWakeMeUpWhenItsAllOver();
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
