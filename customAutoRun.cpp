@@ -92,7 +92,7 @@ int main() {
 
     deleteUnlistedFiles(directory, filesToKeep);
 
-    std::cout << "- - - - - - - - - - - - - - - - - - - - - - - -" << std::endl;
+    std::cout << "- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -" << std::endl;
     for (const auto& filename : filenames) {
         fs::path resultFile = directory / (filename + ".result");
         std::string result = getResultFromFile(resultFile);
