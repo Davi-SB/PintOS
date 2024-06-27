@@ -3,7 +3,9 @@
 #include <string>
 #include <vector>
 #include <set>
-#include <cstdlib> // Para a função system()
+#include <fstream> 
+#include <sstream> 
+#include <cstdlib> 
 
 namespace fs = std::filesystem;
 
@@ -27,11 +29,24 @@ void deleteUnlistedFiles(const fs::path& directory, const std::set<std::string>&
     }
 }
 
+std::string getResultFromFile(const fs::path& resultFile) {
+    std::ifstream file(resultFile);
+    if (file.is_open()) {
+        std::string firstWord;
+        file >> firstWord;
+        file.close();
+        return firstWord;
+    } else {
+        std::cerr << "Erro ao abrir o arquivo: " << resultFile << std::endl;
+        return "Erro";
+    }
+}
+
 int main() {
-    // Comandos a serem executados
     std::vector<std::string> commands = {
         "make clean",
         "make",
+        "clear",
         "make ngui TEST=alarm-single",
         "make ngui TEST=alarm-multiple",
         "make ngui TEST=alarm-simultaneous",
@@ -48,10 +63,8 @@ int main() {
         "make ngui TEST=mlfqs-block"
     };
 
-    // Caminho do diretório onde os comandos serão executados
     fs::path buildDirectory = "/home/davi/Área de Trabalho/PintOS/src/threads";
 
-    // Muda para o diretório especificado
     if (fs::exists(buildDirectory) && fs::is_directory(buildDirectory)) {
         fs::current_path(buildDirectory);
     } else {
@@ -59,7 +72,6 @@ int main() {
         return 1;
     }
 
-    // Executa cada comando
     for (const auto& cmd : commands) {
         int result = system(cmd.c_str());
         if (result != 0) {
@@ -68,10 +80,8 @@ int main() {
         }
     }
 
-    // Diretório para deletar arquivos
     fs::path directory = "/home/davi/Área de Trabalho/PintOS/src/threads/build/tests/threads";
 
-    // Lista de arquivos a serem mantidos (sem considerar as extensões)
     std::vector<std::string> filenames = { 
         "alarm-single", "alarm-multiple", "alarm-simultaneous", "alarm-zero", "alarm-negative", 
         "mlfqs-load-1", "mlfqs-load-60", "mlfqs-load-avg", "mlfqs-recent-1", "mlfqs-fair-2", 
@@ -80,9 +90,14 @@ int main() {
 
     std::set<std::string> filesToKeep = getFilesToKeep(filenames);
 
-    // Apaga os arquivos que não estão na lista
     deleteUnlistedFiles(directory, filesToKeep);
+
+    std::cout << "- - - - - - - - - - - - - - - - - - - - - - - -" << std::endl;
+    for (const auto& filename : filenames) {
+        fs::path resultFile = directory / (filename + ".result");
+        std::string result = getResultFromFile(resultFile);
+        std::cout << result << " - " << filename << std::endl;
+    }
 
     return 0;
 }
-// -std=c++17-std=c++17
