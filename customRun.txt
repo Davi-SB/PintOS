@@ -1,0 +1,20 @@
+make clean
+make
+clear
+make ngui TEST=alarm-single
+make ngui TEST=alarm-multiple
+make ngui TEST=alarm-simultaneous
+make ngui TEST=alarm-zero
+make ngui TEST=alarm-negative
+
+make ngui TEST=mlfqs-load-1
+make ngui TEST=mlfqs-load-60
+make ngui TEST=mlfqs-load-avg
+make ngui TEST=mlfqs-recent-1
+make ngui TEST=mlfqs-fair-2
+make ngui TEST=mlfqs-fair-20
+make ngui TEST=mlfqs-nice-2
+make ngui TEST=mlfqs-nice-10
+make ngui TEST=mlfqs-block
+
+
