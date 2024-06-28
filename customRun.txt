@@ -16,5 +16,3 @@ make ngui TEST=mlfqs-fair-20
 make ngui TEST=mlfqs-nice-2
 make ngui TEST=mlfqs-nice-10
 make ngui TEST=mlfqs-block
-
-

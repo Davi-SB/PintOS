@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "float.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -93,6 +94,8 @@ struct thread {
     struct list_elem elem;              /* List element. */
 
     int64_t wake_up; // time to wake up
+    int nice;
+    float_type recent_cpu;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -107,6 +110,7 @@ struct thread {
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 extern bool thread_mlfqs;
+extern float_type load_avg;
 
 void thread_init (void);
 void thread_start (void);
@@ -138,10 +142,16 @@ void thread_set_priority (int);
 int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
-int thread_get_load_avg (void);
+float_type thread_get_load_avg (void);
 
 // custom
 void custom_insert(struct thread *new_thread);
 void soWakeMeUpWhenItsAllOver(void);
+
+void custom_update_load_avg (void);
+void custom_update_recent_cpu (struct thread *t);
+void custom_update_priority (struct thread *t);
+void custom_update_priority_all (void);
+void custom_update_recent_cpu_all (void);
 
 #endif /* threads/thread.h */

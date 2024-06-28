@@ -185,6 +185,12 @@ static void timer_interrupt (struct intr_frame *args UNUSED) {
 	ticks++;
 	thread_tick();
 	soWakeMeUpWhenItsAllOver();
+
+  if(!(ticks%100)) {
+    custom_update_load_avg();
+    custom_update_recent_cpu_all();
+  } 
+  if(!(ticks%4)) custom_update_priority_all();
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

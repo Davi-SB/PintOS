@@ -21,6 +21,8 @@
 #define THREAD_MAGIC 0xcd6abf4b
 #define A 55
 
+float_type load_avg = 0;
+
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
@@ -356,33 +358,32 @@ thread_get_priority (void)
 
 /* Sets the current thread's nice value to NICE. */
 void
-thread_set_nice (int nice UNUSED) 
+thread_set_nice (int nice) 
 {
-  /* Not yet implemented. */
+  thread_current()->nice = nice;
 }
 
 /* Returns the current thread's nice value. */
 int
 thread_get_nice (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return thread_current()->nice;
 }
 
 /* Returns 100 times the system load average. */
-int
+float_type
 thread_get_load_avg (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  // TODO FLOAT_INT_PART ou FLOAT_ROUND?
+  return FLOAT_MULT_MIX(100,load_avg);
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
-int
+float_type
 thread_get_recent_cpu (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  // TODO FLOAT_INT_PART ou FLOAT_ROUND?
+  return FLOAT_MULT_MIX(100,thread_current()->recent_cpu);
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -472,6 +473,8 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
+  t->nice = 0;
+  t->recent_cpu = 0;   
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
@@ -649,4 +652,50 @@ void custom_insert(struct thread *new_thread) {
     */
 
     list_insert_ordered(&custom_sleep_list, &new_thread->elem, (list_less_func *)&customListLessThan, NULL);
+}
+
+void custom_update_load_avg (void) {
+  ASSERT (thread_mlfqs);
+
+  int ready_threads = list_size(&ready_list);
+  if (thread_current() != idle_thread) ready_threads++; // inclui a thread rodando
+
+  load_avg = FLOAT_ADD(FLOAT_MULT(FLOAT_DIV(FLOAT_CONST(59), FLOAT_CONST(60)), load_avg), FLOAT_DIV_MIX(ready_threads, 60));
+}
+
+void custom_update_recent_cpu (struct thread *t) {
+  ASSERT (thread_mlfqs);
+  if (t == idle_thread) return;
+
+  float_type decay = FLOAT_DIV(FLOAT_MULT_MIX(2, load_avg), FLOAT_ADD_MIX(FLOAT_MULT_MIX(2, load_avg), 1));
+  t->recent_cpu = FLOAT_ADD_MIX(FLOAT_MULT(decay, t->recent_cpu), (t->nice));
+}
+
+void custom_update_priority (struct thread *t) {
+  ASSERT (thread_mlfqs);
+  if (t == idle_thread) return;
+
+  t->priority = PRI_MAX - (t->recent_cpu / 4) - (t->nice * 2);
+  t->priority = min(PRI_MAX, t->priority);
+  t->priority = max(PRI_MIN, t->priority);
+}
+
+void custom_update_priority_all (void) {
+  ASSERT (thread_mlfqs);
+  struct list_elem *e;
+
+  for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e)) {
+    struct thread *t = list_entry(e, struct thread, allelem);
+    custom_update_priority(t);
+  }
+}
+
+void custom_update_recent_cpu_all (void) {
+  ASSERT (thread_mlfqs);
+  struct list_elem *e;
+
+  for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e)) {
+    struct thread *t = list_entry(e, struct thread, allelem);
+    custom_update_recent_cpu(t);
+  }
 }
