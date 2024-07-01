@@ -1,6 +1,5 @@
 #ifndef FLOAT
 #define FLOAT
-#include "float.h"
 
 #define FLOAT_SHIFT_AMOUNT 14
 #define F mypow(14)

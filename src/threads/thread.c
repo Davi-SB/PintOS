@@ -11,6 +11,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "threads/float.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -135,7 +136,6 @@ thread_tick (void)
     idle_ticks++;
 #ifdef USERPROG
   else if (t->pagedir != NULL)
-    user_ticks++;
 #endif
   else
     kernel_ticks++;
@@ -226,6 +226,13 @@ thread_block (void)
   schedule ();
 }
 
+bool custom_compare_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
+  struct thread *t1 = list_entry(a, struct thread, elem);
+  struct thread *t2 = list_entry(b, struct thread, elem);
+
+  return (t1->priority > t2->priority);
+}
+
 /* Transitions a blocked thread T to the ready-to-run state.
    This is an error if T is not blocked.  (Use thread_yield() to
    make the running thread ready.)
@@ -240,10 +247,11 @@ thread_unblock (struct thread *t)
   enum intr_level old_level;
 
   ASSERT (is_thread (t));
-
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  
+  if(thread_mlfqs) list_insert_ordered(&ready_list, &t->elem, (list_less_func *)&custom_compare_priority, NULL); // MLFQS
+  else list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -371,21 +379,15 @@ thread_get_nice (void)
 }
 
 /* Returns 100 times the system load average. */
-float_type
-thread_get_load_avg (void) 
-{
-  // TODO FLOAT_INT_PART ou FLOAT_ROUND?
-  return FLOAT_MULT_MIX(100,load_avg);
+float_type thread_get_load_avg (void) {
+  return FLOAT_INT_PART(FLOAT_MULT_MIX(100,load_avg));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
-float_type
-thread_get_recent_cpu (void) 
-{
-  // TODO FLOAT_INT_PART ou FLOAT_ROUND?
-  return FLOAT_MULT_MIX(100,thread_current()->recent_cpu);
+float_type thread_get_recent_cpu (void) {
+  return FLOAT_INT_PART(FLOAT_MULT_MIX(100,thread_current()->recent_cpu));
 }
-
+
 /* Idle thread.  Executes when no other thread is ready to run.
 
    The idle thread is initially put on the ready list by
@@ -474,10 +476,10 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
   t->nice = 0;
-  t->recent_cpu = 0;   
+  t->recent_cpu = 0;
 
   old_level = intr_disable ();
-  list_push_back (&all_list, &t->allelem);
+  list_push_back (&all_list, &t->allelem); 
   intr_set_level (old_level);
 }
 
@@ -590,10 +592,14 @@ allocate_tid (void)
 
   return tid;
 }
-
+
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+int mypow(int p) {
+    return 1 << p; // calcula 2^p
+}
 
 void soWakeMeUpWhenItsAllOver(void) {
 /*
@@ -619,7 +625,7 @@ void soWakeMeUpWhenItsAllOver(void) {
 */
     while (!list_empty(&custom_sleep_list)) {
         struct list_elem *e = list_front(&custom_sleep_list);
-        struct thread *t = list_entry(e, struct thread, elem);
+        struct thread    *t = list_entry(e, struct thread, elem);
 
         if (t->wake_up > timer_ticks()) break; // sem threads para remover
 
@@ -628,13 +634,12 @@ void soWakeMeUpWhenItsAllOver(void) {
     }
 }
 
-bool customListLessThan(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
+bool custom_compare_wakeup(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
     struct thread *t1 = list_entry(a, struct thread, elem);
     struct thread *t2 = list_entry(b, struct thread, elem);
 
     return (t1->wake_up < t2->wake_up);
 }
-
 
 void custom_insert(struct thread *new_thread) {
     /*
@@ -651,7 +656,7 @@ void custom_insert(struct thread *new_thread) {
     list_insert(it, &new_thread->elem);
     */
 
-    list_insert_ordered(&custom_sleep_list, &new_thread->elem, (list_less_func *)&customListLessThan, NULL);
+   list_insert_ordered(&custom_sleep_list, &new_thread->elem, (list_less_func *)&custom_compare_wakeup, NULL);
 }
 
 void custom_update_load_avg (void) {
@@ -671,11 +676,20 @@ void custom_update_recent_cpu (struct thread *t) {
   t->recent_cpu = FLOAT_ADD_MIX(FLOAT_MULT(decay, t->recent_cpu), (t->nice));
 }
 
+int min(int a, int b) {
+  return a < b ? a : b;
+}
+
+int max(int a, int b) {
+  return a > b ? a : b;
+}
+
 void custom_update_priority (struct thread *t) {
   ASSERT (thread_mlfqs);
   if (t == idle_thread) return;
 
   t->priority = PRI_MAX - (t->recent_cpu / 4) - (t->nice * 2);
+  
   t->priority = min(PRI_MAX, t->priority);
   t->priority = max(PRI_MIN, t->priority);
 }
@@ -688,6 +702,8 @@ void custom_update_priority_all (void) {
     struct thread *t = list_entry(e, struct thread, allelem);
     custom_update_priority(t);
   }
+
+  list_sort(&ready_list, (list_less_func *)&custom_compare_priority, NULL); // ordena a ready
 }
 
 void custom_update_recent_cpu_all (void) {

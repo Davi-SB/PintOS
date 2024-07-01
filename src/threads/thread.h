@@ -148,6 +148,9 @@ float_type thread_get_load_avg (void);
 void custom_insert(struct thread *new_thread);
 void soWakeMeUpWhenItsAllOver(void);
 
+int min(int a, int b);
+int max(int a, int b);
+
 void custom_update_load_avg (void);
 void custom_update_recent_cpu (struct thread *t);
 void custom_update_priority (struct thread *t);

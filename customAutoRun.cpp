@@ -96,6 +96,7 @@ int main() {
     for (const auto& filename : filenames) {
         fs::path resultFile = directory / (filename + ".result");
         std::string result = getResultFromFile(resultFile);
+        if(filename == "mlfqs-load-1") std::cout << std::endl;
         std::cout << result << " - " << filename << std::endl;
     }
 
