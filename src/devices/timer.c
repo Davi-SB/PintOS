@@ -107,6 +107,7 @@ void timer_sleep (int64_t ticks) {
 
   ASSERT (intr_get_level () == INTR_ON);
 
+  // manda a thread dormir se o tempo de acordar for menor que o tempo atual
   if(timer_elapsed(start) < ticks) custom_thread_wait(ticks + start);
 }
 

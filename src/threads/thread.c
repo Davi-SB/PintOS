@@ -103,6 +103,7 @@ thread_init (void)
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
+  initial_thread->nice = 0;
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
   load_avg = 0;
@@ -383,6 +384,11 @@ void
 thread_set_nice (int nice) 
 {
   thread_current()->nice = nice;
+  custom_update_priority(thread_current());
+  
+  enum intr_level old_level = intr_disable();
+  list_sort(&ready_list, (list_less_func *)&custom_compare_priority, NULL); // ordena a ready_list
+  intr_set_level(old_level);
 }
 
 /* Returns the current thread's nice value. */
@@ -489,7 +495,10 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
-  t->nice = 0;
+
+  if(strcmp(name, "main") == 0) t->nice = 0;
+  else t->nice = thread_current()->nice;
+  
   t->recent_cpu = 0;
 
   old_level = intr_disable ();
@@ -684,7 +693,7 @@ void custom_update_load_avg (void) {
   if (thread_current() != idle_thread) ready_threads++; // inclui a thread rodando
 
   enum intr_level old_level = intr_disable();
-  load_avg = FLOAT_ADD(FLOAT_MULT(FLOAT_DIV(FLOAT_CONST(59), FLOAT_CONST(60)), load_avg), FLOAT_DIV_MIX(ready_threads, 60));
+  load_avg = FLOAT_ADD(FLOAT_MULT(FLOAT_DIV(FLOAT_CONST(59), FLOAT_CONST(60)), load_avg), FLOAT_DIV_MIX(FLOAT_CONST(ready_threads), 60));
   printf("Load Average: %d, Ready Threads: %d\n", load_avg, ready_threads);
   intr_set_level(old_level);
 }
@@ -725,7 +734,7 @@ void custom_update_priority_all (void) {
     custom_update_priority(t);
   }
 
-  list_sort(&ready_list, (list_less_func *)&custom_compare_priority, NULL); // ordena a ready
+  list_sort(&ready_list, (list_less_func *)&custom_compare_priority, NULL); // ordena a ready_list
 }
 
 void custom_update_recent_cpu_all (void) {

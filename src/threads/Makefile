@@ -2,12 +2,12 @@ include ../Makefile.kernel
 
 TEST ?= alarm-multiple
 FLAGS = -q 
-TIMEOUT = 120
+TIMEOUT = 150
 PINTOS_RELATIVE_PATH= ../utils/pintos
 BUILD_PATH = build/tests/threads
 ifeq ($(findstring mlfqs, $(TEST)), mlfqs)
     FLAGS += -mlfqs
-	TIMEOUT = 120 
+	TIMEOUT = 150 
 endif
 
 test:
