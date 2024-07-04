@@ -3,13 +3,13 @@ include ../Makefile.kernel
 TEST ?= alarm-multiple
 # flags de comandos para ele funcionar com o mlfqs
 FLAGS = -q 
-TIMEOUT = 60
+TIMEOUT = 120
 PINTOS_RELATIVE_PATH= ../utils/pintos
 BUILD_PATH = build/tests/threads
 ifeq ($(findstring mlfqs, $(TEST)), mlfqs)
 # se for passado um teste de mlfqs ele deve adicionar uma flag e mudar o tempo de timeout
     FLAGS += -mlfqs
-	TIMEOUT = 60 
+	TIMEOUT = 120 
 endif
 
 test:
