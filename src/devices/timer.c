@@ -184,18 +184,6 @@ timer_print_stats (void)
 static void timer_interrupt (struct intr_frame *args UNUSED) {
     ticks++;
     thread_tick();
-    soWakeMeUpWhenItsAllOver();
-    
-    if(thread_mlfqs) {
-        struct thread *curr = thread_current();
-        if (curr != thread_idle()) FLOAT_ADD_MIX(curr->recent_cpu, 1);
-
-        if(!(ticks%100)) { // recalcula a cada segundo
-            custom_update_load_avg();
-            custom_update_recent_cpu_all();
-        } 
-        if(!(ticks%4)) custom_update_priority_all(); // recalcula a cada 4 ticks
-    }
 }
 
 

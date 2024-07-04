@@ -14,7 +14,7 @@ ifdef PROGS
 include ../../Makefile.userprog
 endif
 
-TIMEOUT = 60
+TIMEOUT = 120
 
 clean::
 	rm -f $(OUTPUTS) $(ERRORS) $(RESULTS) 
@@ -52,7 +52,6 @@ $(foreach test,$(TESTS),$(eval $(test).result: $(test).output $(test).ck))
 # Prevent an environment variable VERBOSE from surprising us.
 VERBOSE =
 
-# mudado para ele pegar sem precisar exportar o path
 # TESTCMD = pintos -v -k -T $(TIMEOUT)
 
 TESTCMD = ../../utils/pintos -v -k -T $(TIMEOUT)

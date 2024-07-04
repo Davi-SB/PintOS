@@ -146,7 +146,7 @@ float_type thread_get_load_avg (void);
 
 // custom
 void custom_insert(struct thread *new_thread);
-void soWakeMeUpWhenItsAllOver(void);
+void custom_wake_up_threads(void);
 
 int min(int a, int b);
 int max(int a, int b);

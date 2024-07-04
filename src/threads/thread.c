@@ -22,7 +22,7 @@
 #define THREAD_MAGIC 0xcd6abf4b
 #define A 55
 
-float_type load_avg = 0;
+float_type load_avg;
 
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
@@ -105,6 +105,7 @@ thread_init (void)
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
+  load_avg = 0;
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -126,9 +127,7 @@ thread_start (void)
 
 /* Called by the timer interrupt handler at each timer tick.
    Thus, this function runs in an external interrupt context. */
-void
-thread_tick (void) 
-{
+void thread_tick (void) {
   struct thread *t = thread_current ();
 
   /* Update statistics. */
@@ -143,6 +142,20 @@ thread_tick (void)
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
+
+  custom_wake_up_threads();
+
+  if(thread_mlfqs) {
+    struct thread *curr = thread_current();
+    if (curr != thread_idle()) curr->recent_cpu = FLOAT_ADD_MIX(curr->recent_cpu, 1);
+
+    if(timer_ticks() % 100 == 0) { // recalcula a cada segundo
+      custom_update_load_avg();
+      custom_update_recent_cpu_all();
+    } 
+
+    if(timer_ticks() % 4 == 0) custom_update_priority_all(); // recalcula a cada 4 ticks
+  }  
 }
 
 /* Prints thread statistics. */
@@ -249,9 +262,10 @@ thread_unblock (struct thread *t)
   ASSERT (is_thread (t));
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  
+
   if(thread_mlfqs) list_insert_ordered(&ready_list, &t->elem, (list_less_func *)&custom_compare_priority, NULL); // MLFQS
   else list_push_back (&ready_list, &t->elem);
+  
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -458,7 +472,7 @@ is_thread (struct thread *t)
   return t != NULL && t->magic == THREAD_MAGIC;
 }
 
-/* Does basic initialization of T as a blocked thread named
+/* Does basic initialiTzation of T as a blocked thread named
    NAME. */
 static void
 init_thread (struct thread *t, const char *name, int priority)
@@ -601,7 +615,7 @@ int mypow(int p) {
     return 1 << p; // calcula 2^p
 }
 
-void soWakeMeUpWhenItsAllOver(void) {
+void custom_wake_up_threads(void) {
 /*
     if(list_empty(&custom_sleep_list)) return;
 
@@ -623,14 +637,18 @@ void soWakeMeUpWhenItsAllOver(void) {
     front = list_entry(list_begin(&custom_sleep_list), struct thread, elem);
     (*nextTimeWakeUp) = front->wake_up; // atualiza nextTimeWakeUp
 */
+    
+    // itera pela custom_sleep_list e desbloqueia as threads cujo tempo de wake_up tenha passado
     while (!list_empty(&custom_sleep_list)) {
-        struct list_elem *e = list_front(&custom_sleep_list);
-        struct thread    *t = list_entry(e, struct thread, elem);
+      struct list_elem *e = list_front(&custom_sleep_list); // proximo elemento a sair da fila
+      struct thread    *t = list_entry(e, struct thread, elem);
 
-        if (t->wake_up > timer_ticks()) break; // sem threads para remover
+      // se o tempo de wake_up da thread for maior que o timer_ticks atual, nao ha mais threads para acordar
+      if (t->wake_up > timer_ticks()) break;
 
-        list_pop_front(&custom_sleep_list);
-        thread_unblock(t);
+      // remove a thread do inicio da custom_sleep_list e desbloqueia ela
+      list_pop_front(&custom_sleep_list);
+      thread_unblock(t);
     }
 }
 
@@ -653,7 +671,7 @@ void custom_insert(struct thread *new_thread) {
     it = list_next(it);
     }
 
-    list_insert(it, &new_thread->elem);
+    list_insert(it, &new_thread->elem); 
     */
 
    list_insert_ordered(&custom_sleep_list, &new_thread->elem, (list_less_func *)&custom_compare_wakeup, NULL);
@@ -665,7 +683,10 @@ void custom_update_load_avg (void) {
   int ready_threads = list_size(&ready_list);
   if (thread_current() != idle_thread) ready_threads++; // inclui a thread rodando
 
+  enum intr_level old_level = intr_disable();
   load_avg = FLOAT_ADD(FLOAT_MULT(FLOAT_DIV(FLOAT_CONST(59), FLOAT_CONST(60)), load_avg), FLOAT_DIV_MIX(ready_threads, 60));
+  printf("Load Average: %d, Ready Threads: %d\n", load_avg, ready_threads);
+  intr_set_level(old_level);
 }
 
 void custom_update_recent_cpu (struct thread *t) {
@@ -677,18 +698,19 @@ void custom_update_recent_cpu (struct thread *t) {
 }
 
 int min(int a, int b) {
-  return a < b ? a : b;
+  return (a < b) ? a : b;
 }
 
 int max(int a, int b) {
-  return a > b ? a : b;
+  return (a > b) ? a : b;
 }
 
 void custom_update_priority (struct thread *t) {
   ASSERT (thread_mlfqs);
   if (t == idle_thread) return;
 
-  t->priority = PRI_MAX - (t->recent_cpu / 4) - (t->nice * 2);
+  //t->priority = PRI_MAX - (t->recent_cpu / 4) - (t->nice * 2);
+  t->priority = PRI_MAX - FLOAT_ROUND(FLOAT_DIV_MIX(t->recent_cpu, 4)) - (t->nice * 2);
   
   t->priority = min(PRI_MAX, t->priority);
   t->priority = max(PRI_MIN, t->priority);
@@ -710,8 +732,10 @@ void custom_update_recent_cpu_all (void) {
   ASSERT (thread_mlfqs);
   struct list_elem *e;
 
+  enum intr_level old_level = intr_disable();
   for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e)) {
     struct thread *t = list_entry(e, struct thread, allelem);
     custom_update_recent_cpu(t);
   }
+  intr_set_level(old_level);
 }
